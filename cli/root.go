@@ -46,11 +46,13 @@ func (o *rootOption) runE(cmd *cobra.Command, args []string) (err error) {
 
 	go func() {
 		defer close(done)
-		if _, message, msgErr := conn.ReadMessage(); msgErr != nil {
-			err = msgErr
-			return
-		} else {
-			cmd.Println(string(message))
+		for {
+			if _, message, msgErr := conn.ReadMessage(); msgErr != nil {
+				err = msgErr
+				return
+			} else {
+				cmd.Println(string(message))
+			}
 		}
 	}()
 

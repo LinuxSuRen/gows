@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"bufio"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -43,6 +45,16 @@ func (o *rootOption) runE(cmd *cobra.Command, args []string) (err error) {
 	done := make(chan struct{}, 1)
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
+
+	go func() {
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan() {
+			data := scanner.Bytes()
+			if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+				fmt.Println("failed to send message", err)
+			}
+		}
+	}()
 
 	go func() {
 		defer close(done)

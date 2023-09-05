@@ -6,16 +6,21 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 
 	"github.com/gorilla/websocket"
 	"github.com/spf13/cobra"
 )
 
+const quitCommand = "quit-gows"
+
 func NewRootCmd() (cmd *cobra.Command) {
 	opt := &rootOption{}
 	cmd = &cobra.Command{
-		Use:     "gows",
-		Example: "gwws ws://your-server.com",
+		Use: "gows",
+		Example: fmt.Sprintf(`gwws ws://your-server.com
+
+You can exit the program by inputting %q and press enter.`, quitCommand),
 		Short:   "Echo the message from a websoket server",
 		Args:    cobra.MinimumNArgs(1),
 		PreRunE: opt.preRunE,
@@ -56,10 +61,16 @@ func (o *rootOption) runE(cmd *cobra.Command, args []string) (err error) {
 	signal.Notify(interrupt, os.Interrupt)
 
 	conn.WriteMessage(websocket.TextMessage, []byte("\n"))
+
 	go func() {
+		defer close(done)
 		scanner := bufio.NewScanner(os.Stdin)
 		for scanner.Scan() {
 			data := []byte(scanner.Text() + "\n")
+			if strings.HasPrefix(string(data), quitCommand) {
+				break
+			}
+
 			if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
 				fmt.Println("failed to send message", err)
 			}
@@ -78,11 +89,22 @@ func (o *rootOption) runE(cmd *cobra.Command, args []string) (err error) {
 		}
 	}()
 
+	// handle the speical command
+	go func() {
+		for {
+			select {
+			case <-interrupt:
+				// Get more control characters
+				// https://www.decisivetactics.com/support/view?article=control-characters
+				conn.WriteMessage(websocket.TextMessage, []byte{'\003'})
+			}
+		}
+	}()
+
 	for {
 		select {
-		case <-interrupt:
-			return
 		case <-done:
 		}
+		return
 	}
 }
